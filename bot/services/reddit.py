@@ -17,6 +17,7 @@ from typing import Callable
 import aiohttp
 
 from bot.config import settings
+from bot.utils.video_meta import has_audio_stream
 
 logger = logging.getLogger(__name__)
 
@@ -572,12 +573,13 @@ class RedditDownloader:
         height = int(quality)
         output_template = os.path.join(self.download_dir, f"%(id)s_{quality}p.%(ext)s")
 
-        # h264 приоритет для совместимости с Telegram (как в YouTube боте)
+        # Reddit DASH раздаёт video и audio раздельными потоками — только merge-ветки,
+        # иначе yt-dlp может скатиться в video-only формат и отдать видео без звука.
+        # h264 приоритет для совместимости с Telegram (как в YouTube боте).
         format_str = (
             f"bestvideo[height<={height}][vcodec~='^(avc|h264)']+bestaudio[ext=m4a]"
             f"/bestvideo[height<={height}]+bestaudio"
-            f"/best[height<={height}]"
-            f"/best"
+            f"/bestvideo+bestaudio"
         )
 
         for source, opts in self._proxy_chain_ytdlp():
@@ -594,6 +596,13 @@ class RedditDownloader:
                 )
                 file_path = self._find_downloaded_file(info, "mp4")
                 if file_path and os.path.exists(file_path):
+                    if not await has_audio_stream(file_path):
+                        logger.warning("yt-dlp отдал видео без звука — удаляю, иду в manual fallback")
+                        try:
+                            os.remove(file_path)
+                        except OSError:
+                            pass
+                        raise RuntimeError("no_audio_stream")
                     return DownloadResult(
                         file_path=file_path,
                         media_type="video",
@@ -711,12 +720,13 @@ class RedditDownloader:
 
         output_template = os.path.join(self.download_dir, f"%(id)s_{quality}p.%(ext)s")
         height = int(quality)
-        # h264 приоритет для совместимости с Telegram (как в YouTube боте)
+        # h264 приоритет для совместимости с Telegram (как в YouTube боте).
+        # Требуем acodec!=none в best-ветках — иначе imgur/etc могут отдать video-only.
         format_str = (
             f"bestvideo[height<={height}][vcodec~='^(avc|h264)']+bestaudio[ext=m4a]"
             f"/bestvideo[height<={height}]+bestaudio"
-            f"/best[height<={height}]"
-            f"/best"
+            f"/best[height<={height}][acodec!=none]"
+            f"/best[acodec!=none]"
         )
 
         for source, opts in self._proxy_chain_ytdlp():

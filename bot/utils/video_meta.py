@@ -51,3 +51,24 @@ async def get_video_meta(file_path: str) -> dict:
     except Exception as e:
         logger.warning(f"ffprobe не смог прочитать метаданные: {e}")
         return {}
+
+
+async def has_audio_stream(file_path: str) -> bool:
+    """Проверяет наличие аудиодорожки в видеофайле через ffprobe.
+    Если ffprobe недоступен — считаем что есть (не блокируем отправку).
+    """
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffprobe", "-v", "quiet",
+            "-print_format", "json",
+            "-show_streams", "-select_streams", "a",
+            file_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+        data = json.loads(stdout)
+        return bool(data.get("streams"))
+    except Exception as e:
+        logger.warning(f"ffprobe не смог проверить аудио: {e}")
+        return True

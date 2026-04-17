@@ -1,0 +1,19 @@
+# Основные зависимости
+aiogram==3.26.0
+SQLAlchemy==2.0.38
+asyncpg==0.30.0
+alembic==1.14.1
+yt-dlp>=2025.3.31
+pydantic-settings==2.8.1
+
+# HTTP клиент (скачивание Reddit медиа напрямую)
+aiohttp>=3.9.0
+aiohttp-socks>=0.9.0
+
+# Утилиты
+aiofiles==24.1.0
+python-dotenv==1.0.1
+pysocks==1.7.1
+
+# Ускорение asyncio
+uvloop==0.22.1

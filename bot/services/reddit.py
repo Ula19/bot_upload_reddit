@@ -2,7 +2,7 @@
 Видео: yt-dlp (автоматический DASH merge video+audio, как YouTube бот).
 Fallback: ручной HTTP + ffmpeg merge.
 Галереи: Reddit JSON API (yt-dlp не умеет галереи).
-Fallback chain: direct → SOCKS5 прокси → WARP.
+Fallback chain: SOCKS5 прокси → WARP.
 """
 import asyncio
 import json
@@ -87,7 +87,7 @@ def classify_error(error_msg: str) -> str:
 
 class RedditDownloader:
     """Скачивает медиа из Reddit.
-    Fallback chain: direct → SOCKS5 прокси → WARP.
+    Fallback chain: SOCKS5 прокси → WARP.
     """
 
     def __init__(self):
@@ -95,11 +95,10 @@ class RedditDownloader:
         self._proxy = settings.proxy_url or None
         self.on_source_failed: Callable[[str, str], None] | None = None
 
-        # Fallback-цепочка: direct → SOCKS5 proxy → WARP
-        logger.info("Direct (PRIMARY): без прокси")
+        # Fallback-цепочка: SOCKS5 proxy → WARP
         if self._proxy:
-            logger.info("Резидентный SOCKS5 прокси (fallback): %s", self._proxy)
-        logger.info("WARP прокси (последний шанс): %s", WARP_PROXY)
+            logger.info("Резидентный SOCKS5 прокси (PRIMARY): %s", self._proxy)
+        logger.info("WARP прокси (fallback): %s", WARP_PROXY)
 
     def _fire_source_failed(self, source: str, error: Exception) -> None:
         if self.on_source_failed is None:
@@ -139,14 +138,6 @@ class RedditDownloader:
             "proxy": self._proxy,
             "socket_timeout": 30,
             "retries": 3,
-        }
-
-    def _direct_opts(self) -> dict:
-        return {
-            "quiet": True,
-            "no_warnings": True,
-            "socket_timeout": 30,
-            "retries": 2,
         }
 
     # === Получение метаданных ===
@@ -204,16 +195,16 @@ class RedditDownloader:
         raise RuntimeError("Не удалось получить информацию о посте")
 
     def _proxy_chain_http(self) -> list[tuple[str, str | None]]:
-        """Цепочка прокси для HTTP-запросов: direct → SOCKS5 proxy → WARP"""
-        chain = [("direct", None)]
+        """Цепочка прокси для HTTP-запросов: SOCKS5 proxy → WARP"""
+        chain = []
         if self._proxy:
             chain.append(("proxy", self._proxy))
         chain.append(("warp", f"socks5://warp:9091"))
         return chain
 
     def _proxy_chain_ytdlp(self) -> list[tuple[str, dict]]:
-        """Цепочка прокси для yt-dlp: direct → SOCKS5 proxy → WARP"""
-        chain = [("direct", self._direct_opts())]
+        """Цепочка прокси для yt-dlp: SOCKS5 proxy → WARP"""
+        chain = []
         if self._proxy:
             chain.append(("proxy", self._proxy_opts()))
         chain.append(("warp", self._warp_opts()))
